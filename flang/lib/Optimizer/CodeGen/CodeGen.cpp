@@ -872,7 +872,7 @@ getMalloc(fir::AllocMemOp op, mlir::ConversionPatternRewriter &rewriter) {
     return mlir::SymbolRefAttr::get(userMalloc);
   mlir::OpBuilder moduleBuilder(
       op->getParentOfType<mlir::ModuleOp>().getBodyRegion());
-  auto indexType = mlir::IntegerType::get(op.getContext(), 64);
+  auto indexType = mlir::IntegerType::get(op.getContext(), 32);
   auto mallocDecl = moduleBuilder.create<mlir::LLVM::LLVMFuncOp>(
       op.getLoc(), mallocName,
       mlir::LLVM::LLVMFunctionType::get(getLlvmPtrType(op.getContext()),
@@ -928,6 +928,7 @@ struct AllocMemOpConversion : public fir::FIROpConversion<fir::AllocMemOp> {
     mlir::Type heapTy = heap.getType();
     mlir::Location loc = heap.getLoc();
     auto ity = lowerTy().indexType();
+    auto i32ty = mlir::IntegerType::get(rewriter.getContext(), 32);
     mlir::Type dataTy = fir::unwrapRefType(heapTy);
     mlir::Type llvmObjectTy = convertObjectType(dataTy);
     if (fir::isRecordWithTypeParameters(fir::unwrapSequenceType(dataTy)))
@@ -938,9 +939,10 @@ struct AllocMemOpConversion : public fir::FIROpConversion<fir::AllocMemOp> {
     for (mlir::Value opnd : adaptor.getOperands())
       size = rewriter.create<mlir::LLVM::MulOp>(
           loc, ity, size, integerCast(loc, rewriter, ity, opnd));
+    auto size_i32 = integerCast(loc, rewriter, i32ty, size);
     heap->setAttr("callee", getMalloc(heap, rewriter));
     rewriter.replaceOpWithNewOp<mlir::LLVM::CallOp>(
-        heap, ::getLlvmPtrType(heap.getContext()), size, heap->getAttrs());
+        heap, ::getLlvmPtrType(heap.getContext()), size_i32, heap->getAttrs());
     return mlir::success();
   }
 
